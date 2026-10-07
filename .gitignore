@@ -1,0 +1,7 @@
+obj/
+bin/
+*.o
+*.d
+*.asm
+*.out
+*.sym
