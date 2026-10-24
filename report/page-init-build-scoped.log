@@ -1,0 +1,6 @@
++ cc libs/string.c
++ cc libs/printfmt.c
++ cc libs/readline.c
++ cc libs/sbi.c
++ ld bin/kernel
+riscv64-unknown-elf-objcopy bin/kernel --strip-all -O binary bin/ucore.img

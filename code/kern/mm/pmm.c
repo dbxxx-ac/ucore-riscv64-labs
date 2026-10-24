@@ -1,5 +1,6 @@
 #include <default_pmm.h>
 #include <best_fit_pmm.h>
+#include <buddy_pmm.h>
 #include <defs.h>
 #include <error.h>
 #include <memlayout.h>
@@ -34,7 +35,11 @@ static void check_alloc_page(void);
 
 // init_pmm_manager - initialize a pmm_manager instance
 static void init_pmm_manager(void) {
-    pmm_manager = &default_pmm_manager;
+#ifdef LAB2_BUDDY_CHALLENGE
+    pmm_manager = &buddy_pmm_manager;
+#else
+    pmm_manager = &best_fit_pmm_manager;
+#endif
     cprintf("memory management: %s\n", pmm_manager->name);
     pmm_manager->init();
 }
@@ -61,7 +66,67 @@ size_t nr_free_pages(void) {
     return pmm_manager->nr_free_pages();
 }
 
-//lab2 function1 YOUR CODE
+//lab2 function1 2513960
+static void page_init(void) {
+    extern char end[];
+    uint64_t base = get_memory_base();
+    uint64_t size = get_memory_size();
+    const uint64_t address_max = ~(uint64_t)0;
+
+    if (size == 0 || base > address_max - size) {
+        panic("page_init: invalid DTB memory range");
+    }
+    // The boot mapping and descriptor indices assume this single DRAM base.
+    if (base != DRAM_BASE) {
+        panic("page_init: unsupported DRAM base 0x%016lx", base);
+    }
+    uint64_t detected_end = base + size;
+    cprintf("page_init: detected RAM [0x%016lx, 0x%016lx)\n",
+            base, detected_end);
+    uintptr_t managed_end = ROUNDDOWN(
+        detected_end < PHYSICAL_MEMORY_END ? detected_end : PHYSICAL_MEMORY_END,
+        PGSIZE);
+    if (managed_end <= KERNEL_BEGIN_PADDR) {
+        panic("page_init: RAM does not cover the kernel");
+    }
+
+    va_pa_offset = PHYSICAL_MEMORY_OFFSET;
+    uintptr_t kernel_end = (uintptr_t)end;
+    if (kernel_end < KERNBASE || kernel_end > address_max - (PGSIZE - 1)) {
+        panic("page_init: invalid kernel end address");
+    }
+    uintptr_t descriptors_va = ROUNDUP(kernel_end, PGSIZE);
+    uintptr_t descriptors_pa = PADDR(descriptors_va);
+    npage = managed_end / PGSIZE;
+    size_t count = npage - nbase;
+    if (descriptors_pa >= managed_end ||
+        count > (managed_end - descriptors_pa) / sizeof(struct Page)) {
+        panic("page_init: RAM cannot hold page descriptors");
+    }
+    // The preceding division also bounds the multiplication and addition.
+    uintptr_t descriptors_end = descriptors_pa + count * sizeof(struct Page);
+    if (descriptors_end > address_max - (PGSIZE - 1)) {
+        panic("page_init: page alignment overflow");
+    }
+    uintptr_t free_begin = ROUNDUP(descriptors_end, PGSIZE);
+    if (free_begin >= managed_end) {
+        panic("page_init: no complete free pages");
+    }
+
+    pages = (struct Page *)descriptors_va;
+    for (size_t i = 0; i < count; i++) {
+        memset(&pages[i], 0, sizeof(struct Page));
+        SetPageReserved(&pages[i]);
+    }
+    size_t free_count = (managed_end - free_begin) / PGSIZE;
+    init_memmap(pa2page(free_begin), free_count);
+    cprintf("page_init: managed end 0x%016lx, npage %lu, descriptors %lu\n",
+            managed_end, npage, count);
+    cprintf("page_init: descriptors VA 0x%016lx, PA [0x%016lx, 0x%016lx)\n",
+            descriptors_va, descriptors_pa, descriptors_end);
+    cprintf("page_init: free RAM [0x%016lx, 0x%016lx), %lu pages\n",
+            free_begin, managed_end, free_count);
+}
 
 /* pmm_init - initialize the physical memory management */
 void pmm_init(void) {

@@ -1,6 +1,7 @@
 #include <console.h>
 #include <defs.h>
 #include <pmm.h>
+#include <slub.h>
 #include <stdio.h>
 #include <string.h>
 #include <dtb.h>
@@ -38,6 +39,10 @@ int kern_init(void) {
 
     // grade_backtrace();
     pmm_init();  // init physical memory management
+#ifdef LAB2_BUDDY_CHALLENGE
+    slub_init(); // initialize object allocation after Buddy and its checks
+    slub_check();
+#endif
 
     /* do nothing */
     while (1)

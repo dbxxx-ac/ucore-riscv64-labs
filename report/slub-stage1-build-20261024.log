@@ -1,0 +1,6 @@
+make: 进入目录“/home/student/oslab/repos/ucore-riscv64-labs-lab2/code”
++ cc kern/init/init.c
++ cc kern/mm/slub.c
++ ld bin/kernel
+riscv64-unknown-elf-objcopy bin/kernel --strip-all -O binary bin/ucore.img
+make: 离开目录“/home/student/oslab/repos/ucore-riscv64-labs-lab2/code”
