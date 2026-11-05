@@ -1,0 +1,7 @@
+Clean build: exit 0 (build.log).
+make grade: exit 0; 35/35, 25/25, 40/40; total 100/100 (grade.log).
+Default make qemu: exit 0; 10 exact "100 ticks" lines (qemu.log).
+QEMU exited without manual termination or timeout; sbi_shutdown() is called after the tenth print.
+Markers verified: function1 2513960 twice; function2 2514039 once.
+One idt_init() before pmm_init(); clock_init() before intr_enable().
+No unresolved issues observed in these checks.

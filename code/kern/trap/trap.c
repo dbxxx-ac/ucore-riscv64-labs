@@ -6,10 +6,15 @@
 #include <memlayout.h>
 #include <mmu.h>
 #include <riscv.h>
+#include <sbi.h>
 #include <stdio.h>
 #include <trap.h>
 
 #define TICK_NUM 100
+/* Group-selected number of statistics lines before shutdown. */
+#define SHUTDOWN_AFTER 10
+
+static size_t tick_reports;
 
 static void print_ticks() {
     cprintf("%d ticks\n", TICK_NUM);
@@ -80,8 +85,48 @@ void print_regs(struct pushregs *gpr) {
     cprintf("  t6       0x%08x\n", gpr->t6);
 }
 
-//lab3 function2 YOUR CODE
+//lab3 function2 2514039
+void interrupt_handler(struct trapframe *tf) {
+    uintptr_t cause = tf->cause & ~((uintptr_t)1 << (__riscv_xlen - 1));
 
+    switch (cause) {
+    case IRQ_S_TIMER:
+        clock_set_next_event();
+        ticks++;
+        if (ticks % TICK_NUM == 0) {
+            print_ticks();
+            if (++tick_reports >= SHUTDOWN_AFTER) {
+                sbi_shutdown();
+            }
+        }
+        break;
+    case IRQ_S_SOFT:
+        cprintf("Supervisor software interrupt\n");
+        break;
+    default:
+        cprintf("Unknown interrupt: cause %lu\n", (unsigned long)cause);
+        print_trapframe(tf);
+        break;
+    }
+}
+
+void exception_handler(struct trapframe *tf) {
+    switch (tf->cause) {
+    case CAUSE_ILLEGAL_INSTRUCTION:
+        cprintf("Illegal instruction at 0x%lx\n", (unsigned long)tf->epc);
+        /* The lab test uses a 4-byte illegal instruction. */
+        tf->epc += 4;
+        break;
+    case CAUSE_BREAKPOINT:
+        cprintf("Breakpoint at 0x%lx\n", (unsigned long)tf->epc);
+        /* The lab test uses a 2-byte compressed breakpoint. */
+        tf->epc += 2;
+        break;
+    default:
+        print_trapframe(tf);
+        break;
+    }
+}
 
 static inline void trap_dispatch(struct trapframe *tf) {
     if ((intptr_t)tf->cause < 0) {
