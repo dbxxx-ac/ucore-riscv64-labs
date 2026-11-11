@@ -1,0 +1,40 @@
+
+obj/kern/process/switch.o:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+0000000000000000 <switch_to-0x2>:
+   0:	0001                	nop
+			0: R_RISCV_ALIGN	*ABS*+0x2
+
+0000000000000002 <switch_to>:
+   2:	00153023          	sd	ra,0(a0)
+   6:	00253423          	sd	sp,8(a0)
+   a:	e900                	sd	s0,16(a0)
+   c:	ed04                	sd	s1,24(a0)
+   e:	03253023          	sd	s2,32(a0)
+  12:	03353423          	sd	s3,40(a0)
+  16:	03453823          	sd	s4,48(a0)
+  1a:	03553c23          	sd	s5,56(a0)
+  1e:	05653023          	sd	s6,64(a0)
+  22:	05753423          	sd	s7,72(a0)
+  26:	05853823          	sd	s8,80(a0)
+  2a:	05953c23          	sd	s9,88(a0)
+  2e:	07a53023          	sd	s10,96(a0)
+  32:	07b53423          	sd	s11,104(a0)
+  36:	0005b083          	ld	ra,0(a1)
+  3a:	0085b103          	ld	sp,8(a1)
+  3e:	6980                	ld	s0,16(a1)
+  40:	6d84                	ld	s1,24(a1)
+  42:	0205b903          	ld	s2,32(a1)
+  46:	0285b983          	ld	s3,40(a1)
+  4a:	0305ba03          	ld	s4,48(a1)
+  4e:	0385ba83          	ld	s5,56(a1)
+  52:	0405bb03          	ld	s6,64(a1)
+  56:	0485bb83          	ld	s7,72(a1)
+  5a:	0505bc03          	ld	s8,80(a1)
+  5e:	0585bc83          	ld	s9,88(a1)
+  62:	0605bd03          	ld	s10,96(a1)
+  66:	0685bd83          	ld	s11,104(a1)
+  6a:	8082                	ret

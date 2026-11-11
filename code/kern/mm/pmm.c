@@ -88,6 +88,68 @@ size_t nr_free_pages(void)
 }
 
 //lab2 请补充你在lab2中的代码
+static void page_init(void) {
+    extern char end[];
+    uint64_t base = get_memory_base();
+    uint64_t size = get_memory_size();
+    const uint64_t address_max = ~(uint64_t)0;
+
+    if (size == 0 || base > address_max - size) {
+        panic("page_init: invalid DTB memory range");
+    }
+    // The boot mapping and descriptor indices assume this single DRAM base.
+    if (base != DRAM_BASE) {
+        panic("page_init: unsupported DRAM base 0x%016lx", base);
+    }
+    uint64_t detected_end = base + size;
+    cprintf("page_init: detected RAM [0x%016lx, 0x%016lx)\n",
+            base, detected_end);
+    const uintptr_t kernel_begin_pa = KERNBASE - PHYSICAL_MEMORY_OFFSET;
+    const uintptr_t physical_memory_end = KERNTOP - PHYSICAL_MEMORY_OFFSET;
+    uintptr_t managed_end = ROUNDDOWN(
+        detected_end < physical_memory_end ? detected_end : physical_memory_end,
+        PGSIZE);
+    if (managed_end <= kernel_begin_pa) {
+        panic("page_init: RAM does not cover the kernel");
+    }
+
+    va_pa_offset = PHYSICAL_MEMORY_OFFSET;
+    uintptr_t kernel_end = (uintptr_t)end;
+    if (kernel_end < KERNBASE || kernel_end > address_max - (PGSIZE - 1)) {
+        panic("page_init: invalid kernel end address");
+    }
+    uintptr_t descriptors_va = ROUNDUP(kernel_end, PGSIZE);
+    uintptr_t descriptors_pa = PADDR(descriptors_va);
+    npage = managed_end / PGSIZE;
+    size_t count = npage - nbase;
+    if (descriptors_pa >= managed_end ||
+        count > (managed_end - descriptors_pa) / sizeof(struct Page)) {
+        panic("page_init: RAM cannot hold page descriptors");
+    }
+    // The preceding division also bounds the multiplication and addition.
+    uintptr_t descriptors_end = descriptors_pa + count * sizeof(struct Page);
+    if (descriptors_end > address_max - (PGSIZE - 1)) {
+        panic("page_init: page alignment overflow");
+    }
+    uintptr_t free_begin = ROUNDUP(descriptors_end, PGSIZE);
+    if (free_begin >= managed_end) {
+        panic("page_init: no complete free pages");
+    }
+
+    pages = (struct Page *)descriptors_va;
+    for (size_t i = 0; i < count; i++) {
+        memset(&pages[i], 0, sizeof(struct Page));
+        SetPageReserved(&pages[i]);
+    }
+    size_t free_count = (managed_end - free_begin) / PGSIZE;
+    init_memmap(pa2page(free_begin), free_count);
+    cprintf("page_init: managed end 0x%016lx, npage %lu, descriptors %lu\n",
+            managed_end, npage, count);
+    cprintf("page_init: descriptors VA 0x%016lx, PA [0x%016lx, 0x%016lx)\n",
+            descriptors_va, descriptors_pa, descriptors_end);
+    cprintf("page_init: free RAM [0x%016lx, 0x%016lx), %lu pages\n",
+            free_begin, managed_end, free_count);
+}
 
 static void enable_paging(void)
 {
@@ -220,7 +282,59 @@ struct Page *get_page(pde_t *pgdir, uintptr_t la, pte_t **ptep_store)
     return NULL;
 }
 
-//LAB4 function1 YOUR CODE
+//LAB4 function1 2513960
+
+// Remove one ordinary leaf mapping; intermediate page tables keep their lifetime.
+static void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep)
+{
+    if (*ptep & PTE_V)
+    {
+        struct Page *page = pte2page(*ptep);
+        *ptep = 0;
+        tlb_invalidate(pgdir, la);
+        if (page_ref_dec(page) == 0)
+        {
+            free_page(page);
+        }
+    }
+}
+
+int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm)
+{
+    pte_t *ptep = get_pte(pgdir, la, 1);
+    if (ptep == NULL)
+    {
+        // get_pte may retain an intermediate table allocated before failure.
+        return -E_NO_MEM;
+    }
+
+    page_ref_inc(page);
+    if (*ptep & PTE_V)
+    {
+        if (pte2page(*ptep) == page)
+        {
+            // Permission update: cancel the extra reference without freeing page.
+            page_ref_dec(page);
+        }
+        else
+        {
+            page_remove_pte(pgdir, la, ptep);
+        }
+    }
+    *ptep = pte_create(page2ppn(page), perm);
+    tlb_invalidate(pgdir, la);
+    return 0;
+}
+
+void page_remove(pde_t *pgdir, uintptr_t la)
+{
+    pte_t *ptep = get_pte(pgdir, la, 0);
+    if (ptep != NULL)
+    {
+        page_remove_pte(pgdir, la, ptep);
+    }
+}
+
 
 
 

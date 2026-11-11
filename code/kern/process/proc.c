@@ -218,7 +218,177 @@ init_main(void *arg)
     return 0;
 }
 
-//LAB4 function2 YOUR CODE
+//LAB4 function2 2514039
+
+static struct proc_struct *alloc_proc(void)
+{
+    struct proc_struct *proc = kmalloc(sizeof(struct proc_struct));
+    if (proc == NULL)
+    {
+        return NULL;
+    }
+    memset(proc, 0, sizeof(*proc));
+    proc->state = PROC_UNINIT;
+    proc->pid = -1;
+    proc->pgdir = boot_pgdir_pa; // Kernel threads share the kernel page table.
+    list_init(&proc->list_link);
+    list_init(&proc->hash_link);
+    return proc;
+}
+
+static int copy_mm(uint32_t clone_flags, struct proc_struct *proc)
+{
+    // CLONE_VM does not imply support for sharing a user address space yet.
+    if (current->mm != NULL)
+    {
+        return -E_INVAL;
+    }
+    proc->mm = NULL;
+    return 0;
+}
+
+static void copy_thread(struct proc_struct *proc, uintptr_t esp,
+                        struct trapframe *tf)
+{
+    static_assert(sizeof(struct trapframe) % 16 == 0);
+    static_assert(sizeof(struct trapframe) <= KSTACKSIZE);
+    uintptr_t stack_top = proc->kstack + KSTACKSIZE;
+    proc->tf = (struct trapframe *)(stack_top - sizeof(struct trapframe));
+    memcpy(proc->tf, tf, sizeof(*tf));
+    proc->tf->gpr.a0 = 0;
+    proc->tf->gpr.sp = esp != 0 ? esp : stack_top;
+    proc->context.ra = (uintptr_t)forkret;
+    proc->context.sp = (uintptr_t)proc->tf;
+}
+
+int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
+{
+    if (nr_process >= MAX_PROCESS)
+    {
+        return -E_NO_FREE_PROC;
+    }
+    struct proc_struct *proc = alloc_proc();
+    if (proc == NULL)
+    {
+        return -E_NO_MEM;
+    }
+    proc->parent = current;
+    int ret = setup_kstack(proc);
+    if (ret != 0)
+    {
+        goto bad_proc;
+    }
+    if ((ret = copy_mm(clone_flags, proc)) != 0)
+    {
+        goto bad_kstack;
+    }
+    copy_thread(proc, stack, tf);
+
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    // Recheck at publication, before any PID/list/count changes.
+    if (nr_process >= MAX_PROCESS)
+    {
+        local_intr_restore(intr_flag);
+        ret = -E_NO_FREE_PROC;
+        goto bad_kstack;
+    }
+    proc->pid = get_pid();
+    hash_proc(proc);
+    list_add(&proc_list, &proc->list_link);
+    nr_process++;
+    wakeup_proc(proc);
+    ret = proc->pid;
+    local_intr_restore(intr_flag);
+    return ret;
+
+bad_kstack:
+    put_kstack(proc);
+bad_proc:
+    kfree(proc);
+    return ret;
+}
+
+int kernel_thread(int (*fn)(void *), void *arg, uint32_t clone_flags)
+{
+    struct trapframe tf;
+    memset(&tf, 0, sizeof(tf));
+    // entry.S moves s1 to a0 and calls the function in s0.
+    tf.gpr.s0 = (uintptr_t)fn;
+    tf.gpr.s1 = (uintptr_t)arg;
+    tf.epc = (uintptr_t)kernel_thread_entry;
+    tf.status = (read_csr(sstatus) | SSTATUS_SPP | SSTATUS_SPIE) & ~SSTATUS_SIE;
+    return do_fork(clone_flags | CLONE_VM, 0, &tf);
+}
+
+void proc_init(void)
+{
+    list_init(&proc_list);
+    for (int i = 0; i < HASH_LIST_SIZE; i++)
+    {
+        list_init(&hash_list[i]);
+    }
+    idleproc = alloc_proc();
+    if (idleproc == NULL)
+    {
+        panic("proc_init: cannot allocate idleproc");
+    }
+    idleproc->pid = 0;
+    idleproc->state = PROC_RUNNABLE;
+    idleproc->kstack = (uintptr_t)bootstack;
+    idleproc->need_resched = 1;
+    // set_proc_name copies PROC_NAME_LEN bytes, so provide padded arrays.
+    static const char idle_name[PROC_NAME_LEN + 1] = "idle";
+    static const char init_name[PROC_NAME_LEN + 1] = "init";
+    set_proc_name(idleproc, idle_name);
+    current = idleproc;
+    nr_process = 1; // Idle is counted, but kept out of proc_list and hash_list.
+
+    int pid = kernel_thread(init_main, "Hello world!!", 0);
+    if (pid < 0)
+    {
+        panic("proc_init: cannot create initproc (%d)", pid);
+    }
+    initproc = find_proc(pid);
+    if (initproc == NULL || pid != 1)
+    {
+        panic("proc_init: invalid initial process PID %d", pid);
+    }
+    set_proc_name(initproc, init_name);
+}
 
 
-//LAB4 function3 YOUR CODE
+
+//LAB4 function3 2513513
+
+void cpu_idle(void)
+{
+    while (1)
+    {
+        if (current->need_resched)
+        {
+            schedule();
+        }
+    }
+}
+
+void proc_run(struct proc_struct *proc)
+{
+    if (proc != current)
+    {
+        bool intr_flag;
+        local_intr_save(intr_flag);
+        struct proc_struct *prev = current;
+        current = proc;
+        // pgdir is a physical root address; lsatp() still uses Sv32 here.
+        uintptr_t satp = ((uintptr_t)SATP_MODE_SV39 << 60) |
+                         (proc->pgdir >> RISCV_PGSHIFT);
+        asm volatile("" ::: "memory");
+        write_csr(satp, satp);
+        flush_tlb();
+        asm volatile("" ::: "memory");
+        switch_to(&prev->context, &proc->context);
+        // Reached when prev is selected again, on its original kernel stack.
+        local_intr_restore(intr_flag);
+    }
+}

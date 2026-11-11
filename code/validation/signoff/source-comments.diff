@@ -1,0 +1,50 @@
+--- before/kern/mm/pmm.c
++++ kern/mm/pmm.c
+@@ -282,7 +282,7 @@
+     return NULL;
+ }
+ 
+-//LAB4 function1 YOUR CODE
++//LAB4 function1 2513960
+ 
+ // Remove one ordinary leaf mapping; intermediate page tables keep their lifetime.
+ static void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep)
+--- before/kern/process/proc.c
++++ kern/process/proc.c
+@@ -218,7 +218,7 @@
+     return 0;
+ }
+ 
+-//LAB4 function2 YOUR CODE
++//LAB4 function2 2514039
+ 
+ static struct proc_struct *alloc_proc(void)
+ {
+@@ -359,7 +359,7 @@
+ 
+ 
+ 
+-//LAB4 function3 YOUR CODE
++//LAB4 function3 2513513
+ 
+ void cpu_idle(void)
+ {
+--- before/kern/schedule/sched.c
++++ kern/schedule/sched.c
+@@ -10,7 +10,7 @@
+     proc->state = PROC_RUNNABLE;
+ }
+ 
+-//LAB4 function3 YOUR CODE
++//LAB4 function3 2513513
+ 
+ 
+ 
+--- before/kern/process/switch.S
++++ kern/process/switch.S
+@@ -1,4 +1,4 @@
+-//LAB4 function3 YOUR CODE
++//LAB4 function3 2513513
+ #include <riscv.h>
+ 
+     .text

@@ -1,0 +1,8 @@
+exit=1
+exit=1
+Cannot open netlink socket: Operation not permitted
+State   Recv-Q   Send-Q     Local Address:Port     Peer Address:Port  Process   
+exit=0
+proc tcp listeners for 1234 (04D2):
+  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode                                                     
+  sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode

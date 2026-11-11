@@ -1,0 +1,4 @@
+PASS: changed source/protected file set: kern/schedule/sched.c, kern/process/switch.S, kern/process/proc.c
+PASS: proc.c original content unchanged; module3 appended
+PASS: default source has no grading hooks
+PASS: no listener on TCP 1234 at final check

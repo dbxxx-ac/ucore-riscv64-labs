@@ -1,0 +1,1 @@
+Both default runs reached init_main output then the existing do_exit panic. Existing kern/debug/kmonitor.c calls sbi_shutdown() unconditionally before readline. QEMU exited on that original framework path, exit 0. No Ctrl-A X was sent; no timeout or signal was used. No new shutdown code was added. Second PTY run kept stdin open to verify this exit was not caused by terminal EOF.

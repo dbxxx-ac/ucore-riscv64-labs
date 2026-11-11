@@ -84,6 +84,49 @@ void print_regs(struct pushregs *gpr)
 extern struct mm_struct *check_mm_struct;
 
 //lab3 请补充你在lab3中的代码
+//lab3 function2 2514039
+void interrupt_handler(struct trapframe *tf) {
+    uintptr_t cause = tf->cause & ~((uintptr_t)1 << (__riscv_xlen - 1));
+
+    switch (cause) {
+    case IRQ_S_TIMER:
+        clock_set_next_event();
+        ticks++;
+        if (ticks % TICK_NUM == 0) {
+            print_ticks();
+        }
+        break;
+    case IRQ_S_SOFT:
+        cprintf("Supervisor software interrupt\n");
+        break;
+    default:
+        cprintf("Unknown interrupt: cause %lu\n", (unsigned long)cause);
+        print_trapframe(tf);
+        break;
+    }
+}
+
+void exception_handler(struct trapframe *tf) {
+    switch (tf->cause) {
+    case CAUSE_ILLEGAL_INSTRUCTION:
+        cprintf("Illegal instruction at 0x%lx\n", (unsigned long)tf->epc);
+        /* The reference lab test uses a 4-byte illegal instruction.
+         * +4 is not a general rule for all illegal instructions. */
+        tf->epc += 4;
+        break;
+    case CAUSE_BREAKPOINT:
+        cprintf("Breakpoint at 0x%lx\n", (unsigned long)tf->epc);
+        /* The reference lab test uses a 2-byte compressed breakpoint.
+         * +2 is not a general rule for all breakpoint instructions. */
+        tf->epc += 2;
+        break;
+    default:
+        print_trapframe(tf);
+        break;
+    }
+}
+
+
 
 
 
